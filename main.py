@@ -218,7 +218,6 @@ async def listar_tudo(ctx):
     await enviar_relatorio(ctx, registros, "Todos os Registros")
 
 
-bot.run(TOKEN)
 # Mini servidor web pra enganar o Render
 class PingHandler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -235,3 +234,4 @@ def run_web_server():
 
 # Inicia o servidor web em uma thread separada
 threading.Thread(target=run_web_server).start()
+bot.run(TOKEN)
