@@ -5,6 +5,8 @@ import os
 import discord
 from discord.ext import commands
 from dotenv import load_dotenv
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -215,4 +217,21 @@ async def listar_tudo(ctx):
     registros = carregar_registros()
     await enviar_relatorio(ctx, registros, "Todos os Registros")
 
-bot.run(TOKEN)
+
+
+# Mini servidor web pra enganar o Render
+class PingHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
+        self.wfile.write(b'Bot do Discord online!')
+
+
+def run_web_server():
+    server = HTTPServer(('0.0.0.0', 10000), PingHandler)
+    server.serve_forever()
+
+
+# Inicia o servidor web em uma thread separada
+threading.Thread(target=run_web_server).start()
