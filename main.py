@@ -10,10 +10,11 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
-CANAL_NOME = "〔📷〕registro-farm"
-NOME_CANAL_RELATORIO = "relatorios-bot"
-CARGOS_PERMITIDOS = ["01", "02", "GERENTE DE FARM"]
-TEMPO_AUTOEXCLUSAO = 1800  # 30 minutos
+CANAL_NOME = "✅-𝐩𝐞𝐝𝐢𝐫-𝐬𝐞𝐭𝐚𝐠𝐞𝐦"
+NOME_CANAL_RELATORIO = "relatorio-setados"
+CARGOS_PERMITIDOS = ["Líder 👑", "01", "02", "03", "Gerente",
+                     "Gerente Geral", "Recrutador"]
+TEMPO_AUTOEXCLUSAO = 5 * 60  # 5 minutos
 ARQUIVO_JSON = "registros.json"
 EMOJI_VALIDO = "✅"
 
@@ -49,11 +50,11 @@ def salvar_registro(novo_registro):
     print(f"Total de registros: {len(dados)}")
 
 
-def marcar_como_pago(mensagem_id):
+def marcar_como_setado(mensagem_id):
     dados = carregar_registros()
     for item in dados:
         if item.get("mensagem_id") == mensagem_id:
-            item["pago"] = True
+            item["setado"] = True
             break
     salvar_registros(dados)
 
@@ -73,7 +74,7 @@ async def on_message(message):
         return
 
     linhas = message.content.strip().splitlines()
-    if len(linhas) < 3:
+    if len(linhas) < 4:
         await bot.process_commands(message)
         return
 
@@ -85,34 +86,26 @@ async def on_message(message):
         chave = partes[0].strip().lower()
         valor = partes[1].strip()
 
-        if chave == "item":
-            dados["item"] = valor
-        elif chave == "quantia":
-            try:
-                dados["quantia"] = int(valor)
-            except ValueError:
-                await bot.process_commands(message)
-                return
-        elif chave == "id":
-            try:
-                dados["id"] = int(valor)
-            except ValueError:
-                await bot.process_commands(message)
-                return
+        try:
+            dados[chave] = valor
+        except ValueError:
+            await bot.process_commands(message)
+            return
 
-    if not all(k in dados for k in ("item", "quantia", "id")):
+    if not all(k in dados for k in ("id", "nome", "tel", "rec")):
         await bot.process_commands(message)
         return
 
     novo_registro = {
         "usuario": message.author.display_name,
-        "item": dados["item"],
-        "quantia": dados["quantia"],
         "id": dados["id"],
+        "nome": dados["nome"],
+        "tel": dados["tel"],
+        "rec": dados["rec"],
         "mensagem_id": message.id,
         "data": message.created_at.strftime("%d/%m/%Y"),
         "hora": message.created_at.strftime("%H:%M:%S"),
-        "pago": False
+        "setado": False
     }
 
     salvar_registro(novo_registro)
@@ -128,8 +121,60 @@ async def on_reaction_add(reaction, user):
         return
 
     if str(reaction.emoji) == EMOJI_VALIDO:
-        marcar_como_pago(reaction.message.id)
-        print(f'Mensagem {reaction.message.id} marcada como paga.')
+        marcar_como_setado(reaction.message.id)
+
+        # Buscar o autor da mensagem
+        autor = reaction.message.author
+
+        # Carregar registros para buscar dados
+        registros = carregar_registros()
+        registro = next((r for r in registros if r["mensagem_id"] == reaction.message.id), None)
+
+        if not registro:
+            print("Registro não encontrado para alterar apelido/tag.")
+            return
+
+        # Alterar apelido
+        novo_apelido = f"{registro['id']} | {registro['nome']}"
+        try:
+            await autor.edit(nick=novo_apelido)
+            print(f"Apelido de {autor} alterado para: {novo_apelido}")
+        except discord.Forbidden:
+            print(f"Sem permissão para mudar apelido de {autor}.")
+        except Exception as e:
+            print(f"Erro ao mudar apelido: {e}")
+
+        # Adicionar role "Olheiro"
+        role = discord.utils.get(reaction.message.guild.roles, name="olheiro")
+        if role:
+            try:
+                await autor.add_roles(role)
+                print(f"Tag 'olheiro' adicionada para {autor}.")
+            except discord.Forbidden:
+                print(f"Sem permissão para adicionar tag em {autor}.")
+            except Exception as e:
+                print(f"Erro ao adicionar role: {e}")
+        else:
+            print("Tag 'olheiro' não encontrada no servidor.")
+
+
+@bot.event
+async def on_reaction_remove(reaction, user):
+    if user.bot:
+        return
+
+    if reaction.message.channel.name != CANAL_NOME:
+        return
+
+    if str(reaction.emoji) == EMOJI_VALIDO:
+        # Marcar como não setado no JSON
+        dados = carregar_registros()
+        for item in dados:
+            if item.get("mensagem_id") == reaction.message.id:
+                item["setado"] = False
+                break
+        salvar_registros(dados)
+        print(f"Registro com mensagem_id {reaction.message.id} desmarcado como setado.")
 
 
 def criar_embed(registros, titulo):
@@ -139,16 +184,16 @@ def criar_embed(registros, titulo):
         return embed
 
     for r in registros:
-        pago = "✅" if r.get("pago") else "❌"
+        setado = "✅" if r.get("setado") else "❌"
         data = r.get("data", "N/A")
         hora = r.get("hora", "N/A")
         embed.add_field(
-            name=f"{r['item']} ({r['quantia']})",
+            name=f"{r['id']} ({r['nome']})",
             value=(
                 f"👤 **Usuário:** {r['usuario']}\n"
                 f"🆔 **ID:** {r['id']}\n"
                 f"🕒 **Data:** {data} às {hora}\n"
-                f"💰 **Pago:** {pago}"
+                f"💰 **setado:** {setado}"
             ),
             inline=False
         )
@@ -191,13 +236,13 @@ async def verificar_permissao(ctx):
     return False
 
 
-@bot.command(name='pagos')
-async def listar_pagos(ctx):
+@bot.command(name='setados')
+async def listar_setados(ctx):
     if not await verificar_permissao(ctx):
         return await ctx.send("Você não tem permissão para usar este comando.")
 
-    registros = [r for r in carregar_registros() if r.get("pago")]
-    await enviar_relatorio(ctx, registros, "Registros Pagos")
+    registros = [r for r in carregar_registros() if r.get("setado")]
+    await enviar_relatorio(ctx, registros, "Registros Setados")
 
 
 @bot.command(name='pendentes')
@@ -205,7 +250,7 @@ async def listar_pendentes(ctx):
     if not await verificar_permissao(ctx):
         return await ctx.send("Você não tem permissão para usar este comando.")
 
-    registros = [r for r in carregar_registros() if not r.get("pago")]
+    registros = [r for r in carregar_registros() if not r.get("setado")]
     await enviar_relatorio(ctx, registros, "Registros Pendentes")
 
 
