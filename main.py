@@ -10,10 +10,10 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
-CANAL_NOME = "✅-𝐩𝐞𝐝𝐢𝐫-𝐬𝐞𝐭𝐚𝐠𝐞𝐦"
+CANAL_NOME = "✅┇pedir-set"
 NOME_CANAL_RELATORIO = "relatorio-setados"
-CARGOS_PERMITIDOS = ["Líder 👑", "01", "02", "03", "Gerente",
-                     "Gerente Geral", "Recrutador"]
+CARGOS_PERMITIDOS = ["👑┇00", "🥇┇01", "🥇┇02", "🥇┇03", "✍️┇EDITOR DO SERVER",
+                     "🔫┇LIDER TÁTICO", "👨‍💼 ┇GERENTE GERAL"]
 TEMPO_AUTOEXCLUSAO = 5 * 60  # 5 minutos
 ARQUIVO_JSON = "registros.json"
 EMOJI_VALIDO = "✅"
@@ -91,8 +91,8 @@ async def on_message(message):
         except ValueError:
             await bot.process_commands(message)
             return
-
-    if not all(k in dados for k in ("id", "nome", "tel", "rec")):
+    dados = {k.lower(): v for k, v in dados.items()}
+    if not all(k in dados for k in ("id", "nome", "telefone", "rec")):
         await bot.process_commands(message)
         return
 
@@ -100,7 +100,7 @@ async def on_message(message):
         "usuario": message.author.display_name,
         "id": dados["id"],
         "nome": dados["nome"],
-        "tel": dados["tel"],
+        "telefone": dados["telefone"],
         "rec": dados["rec"],
         "mensagem_id": message.id,
         "data": message.created_at.strftime("%d/%m/%Y"),
